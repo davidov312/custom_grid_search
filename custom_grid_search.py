@@ -3,6 +3,7 @@
 # date: 23.12.21
 ###################
 
+import os
 import itertools
 import pandas as pd
 import numpy as np
@@ -35,22 +36,31 @@ class CustomGridSearch():
 
 
     def get_best_params(self):
-        self.df['result'] = self.df[[f'result_{i}' for i in range(self.num_folds)]].mean(axis=1)
-        self.df = self.df.drop([f'result_{i}' for i in range(self.num_folds)], axis=1)
-        return self.df[self.df.result == self.df.result.max()].iloc[0].drop('result').to_dict() # iloc is for the case of multiple parameters with the highest result
+        self.df_results['result'] = self.df_results[[f'result_{i}' for i in range(self.num_folds)]].mean(axis=1)
+        self.df_results = self.df_results.drop([f'result_{i}' for i in range(self.num_folds)], axis=1)
+        return self.df_results[self.df_results.result == self.df_results.result.max()].iloc[0].drop('result').to_dict() # iloc is for the case of multiple parameters with the highest result
     
     
     def fit(self, X, y):
-        df = self.param_df.copy()
-        df[[f'result_{i}' for i in range(self.num_folds)]] = None
+        f_name = 'df_results.csv' 
+        if os.path.isfile(f_name):
+            print('Starting from a previous termination point')
+            df_results = pd.read_csv(f_name)
+            assert self.param_df.astype(float).equals(df_results[self.param_df.columns].astype(float))
+        else:
+            df_results = self.param_df.copy()
+            df_results[[f'result_{i}' for i in range(self.num_folds)]] = None
+
         kfold = KFold(n_splits=self.num_folds).split(X) if type(self.train_folds) == int else self.train_folds
-        
-        for i in range(len(df)):
+
+        for i in range(len(df_results)):
             for j,(tr_idx, val_idx) in enumerate(kfold):
-                if df.loc[i, [f'result_{j}']].isnull().values:
-                    df.loc[i, [f'result_{j}']] = self._get_results_trial(self.param_df.loc[i], X[tr_idx], y[tr_idx], X[val_idx], y[val_idx])
+                if df_results.loc[i, [f'result_{j}']].isnull().values:
+                    # print(f'Train and evaluate using the hyperparameters: {self.param_df.loc[i]}')
+                    df_results.loc[i, [f'result_{j}']] = self._get_results_trial(self.param_df.loc[i], X[tr_idx], y[tr_idx], X[val_idx], y[val_idx])
+                    df_results.to_csv(f_name, index=False)
     
-        self.df = df
+        self.df_results = df_results
         self.best_params_ = self.get_best_params()
     
 
